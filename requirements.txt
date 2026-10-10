@@ -6,3 +6,4 @@ pyproj
 osmnx==1.3.0
 Flask-Login
 Flask-SQLAlchemy
+Shapely
