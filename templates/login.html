@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Đăng nhập</title>
+
+<style>
+body {
+    margin: 0;
+    padding: 0;
+    background: #f4f6f8;
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+/* KHUNG LOGIN */
+.login-box {
+    width: 420px;
+    margin: 120px auto;
+    border-radius: 12px;
+    overflow: hidden;
+    background: linear-gradient(#e9f2f9, #cfdfea);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+}
+
+/* HEADER */
+.login-header {
+    background: linear-gradient(#e3eef7, #c9dced);
+    padding: 12px;
+    text-align: center;
+    font-weight: bold;
+    font-size: 20px;
+    color: #2c4a66;
+    border-bottom: 1px solid #b5c9da;
+}
+
+/* BODY */
+.login-body {
+    padding: 20px 30px;
+}
+
+.form-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.form-row label {
+    width: 120px;
+    font-weight: bold;
+    color: #123d63;
+}
+
+.form-row input {
+    flex: 1;
+    height: 28px;
+    border-radius: 4px;
+    border: 1px solid #5b8db8;
+    padding: 0 6px;
+    font-size: 14px;
+}
+
+/* FOOTER */
+.login-footer {
+    background: linear-gradient(#cfdfea, #bcd0e4);
+    padding: 15px;
+    text-align: center;
+    border-top: 1px solid #b5c9da;
+}
+
+.login-footer button {
+    padding: 6px 18px;
+    background: linear-gradient(#1e90ff, #0066cc);
+    color: white;
+    border: 1px solid #004c99;
+    border-radius: 4px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.login-footer button:hover {
+    background: linear-gradient(#3399ff, #0073e6);
+}
+
+/* ERROR */
+.error {
+    color: red;
+    text-align: center;
+    margin-bottom: 10px;
+    font-weight: bold;
+}
+</style>
+</head>
+
+<body>
+
+<div class="login-box">
+    <div class="login-header">
+        Đăng nhập
+    </div>
+
+    <form method="POST">
+        <div class="login-body">
+
+            {% if error %}
+            <div class="error">{{ error }}</div>
+            {% endif %}
+
+            <div class="form-row">
+                <label>Tài khoản (*):</label>
+                <input type="text" name="username" required>
+            </div>
+
+            <div class="form-row">
+                <label>Mật khẩu (*):</label>
+                <input type="password" name="password" required>
+            </div>
+
+        </div>
+
+        <div class="login-footer">
+            <button type="submit">Đăng nhập</button>
+        </div>
+    </form>
+</div>
+
+</body>
+</html>

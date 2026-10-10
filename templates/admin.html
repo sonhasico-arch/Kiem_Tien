@@ -1,0 +1,21 @@
+<h2>Quản lý User</h2>
+
+<form method="post" action="/admin/create_user">
+  <input name="username" placeholder="Username">
+  <input name="password" placeholder="Password">
+  <select name="role">
+    <option value="user">User</option>
+    <option value="admin">Admin</option>
+  </select>
+  <button>Tạo</button>
+</form>
+
+<hr>
+
+<ul>
+{% for u in users %}
+  <li>{{ u.username }}</li>
+{% endfor %}
+</ul>
+
+<a href="/">Quay lại</a>

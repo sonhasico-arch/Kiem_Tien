@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Kiếm tiền</title>
+
+<link rel="stylesheet"
+href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+<link rel="stylesheet"
+href="https://unpkg.com/leaflet-draw/dist/leaflet.draw.css"/>
+
+<style>
+body { margin:0; display:flex; font-family:Arial; }
+#sidebar { width:300px; background:#111; color:white; padding:20px; }
+#map { flex:1; height:100vh; }
+
+button {
+  width:100%;
+  padding:10px;
+  margin-top:10px;
+  background:#007bff;
+  border:none;
+  color:white;
+  cursor:pointer;
+}
+
+#status {
+  margin-top:15px;
+  font-weight:bold;
+  color:#00ff99;
+}
+</style>
+</head>
+
+<body>
+
+<!-- ================= SIDEBAR ================= -->
+<div id="sidebar">
+<h2>KIẾM TIỀN LÀ CHÂN ÁI</h2>
+
+<h4>Không làm mà đòi có ăn thì chỉ có ăn cứt</h4>
+<h4>Upload KML / KMZ</h4>
+
+<input type="file" id="file">
+<button onclick="upload()">Upload</button>
+<button onclick="exportDXF()">Export DXF</button>
+
+<p id="status"></p>
+</div>
+
+<!-- ================= MAP ================= -->
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-draw/dist/leaflet.draw.js"></script>
+
+<script>
+
+let map = L.map('map').setView([21.03, 105.85], 12);
+
+// ===========================
+// BASE MAP LAYERS
+// ===========================
+let osm = L.tileLayer(
+    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    { maxZoom: 19 }
+);
+
+let googleSat = L.tileLayer(
+    'https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',
+    { maxZoom: 20, subdomains: ['mt0','mt1','mt2','mt3'] }
+);
+
+let googleHybrid = L.tileLayer(
+    'https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+    { maxZoom: 20, subdomains: ['mt0','mt1','mt2','mt3'] }
+);
+
+let dark = L.tileLayer(
+    'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    { maxZoom: 19 }
+);
+
+osm.addTo(map);
+
+L.control.layers({
+    "OSM": osm,
+    "Google Satellite": googleSat,
+    "Google Hybrid": googleHybrid,
+    "Dark Mode": dark
+}).addTo(map);
+
+// ===========================
+let pointLayer = L.layerGroup().addTo(map);
+let lineLayer = L.layerGroup().addTo(map);
+let drawnItems = new L.FeatureGroup();
+map.addLayer(drawnItems);
+
+let selectedBBox = null;
+
+// ===========================
+// DRAW TOOL
+// ===========================
+let drawControl = new L.Control.Draw({
+    draw: {
+        polygon: false,
+        polyline: true,
+        circle: false,
+        marker: false,
+        circlemarker: false,
+        rectangle: true
+    },
+    edit: { featureGroup: drawnItems }
+});
+map.addControl(drawControl);
+
+// ===========================
+map.on(L.Draw.Event.CREATED, function (e) {
+
+    let layer = e.layer;
+
+    if (e.layerType === "rectangle") {
+        drawnItems.clearLayers();
+        drawnItems.addLayer(layer);
+
+        let b = layer.getBounds();
+        selectedBBox = {
+            north: b.getNorth(),
+            south: b.getSouth(),
+            east: b.getEast(),
+            west: b.getWest()
+        };
+
+        document.getElementById("status").innerText = "Đã chọn vùng export";
+    }
+
+    if (e.layerType === "polyline") {
+        drawnItems.addLayer(layer);
+
+        let pts = layer.getLatLngs();
+        let d = 0;
+        for (let i = 1; i < pts.length; i++) {
+            d += map.distance(pts[i-1], pts[i]);
+        }
+
+        document.getElementById("status").innerText =
+            "Chiều dài tuyến: " + d.toFixed(2) + " m (" + (d/1000).toFixed(3) + " km)";
+    }
+});
+
+// ===========================
+// UPLOAD
+// ===========================
+function upload() {
+    let f = document.getElementById("file");
+    if (!f.files.length) return alert("Chưa chọn file");
+
+    let fd = new FormData();
+    fd.append("file", f.files[0]);
+
+    fetch("/upload_kml", { method:"POST", body:fd })
+    .then(r=>r.json())
+    .then(data=>{
+        pointLayer.clearLayers();
+        lineLayer.clearLayers();
+
+        let latlngs=[];
+        data.points.forEach(p=>{
+            let ll=[p.lat,p.lon];
+            latlngs.push(ll);
+            pointLayer.addLayer(L.circleMarker(ll,{radius:6,color:"red"}));
+        });
+
+        if(latlngs.length>1){
+            lineLayer.addLayer(L.polyline(latlngs,{color:"yellow",weight:4}));
+            map.fitBounds(latlngs);
+        }
+
+        document.getElementById("status").innerText =
+            "Đã load " + data.points.length + " điểm";
+    });
+}
+
+// ===========================
+function exportDXF() {
+    if (!selectedBBox) return alert("Chưa chọn vùng export");
+
+    fetch("/export_dxf",{
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body:JSON.stringify({ bbox:selectedBBox })
+    })
+    .then(r=>r.blob())
+    .then(b=>{
+        let a=document.createElement("a");
+        a.href=URL.createObjectURL(b);
+        a.download="Conver_DXF.dxf";
+        a.click();
+    });
+}
+
+</script>
+
+</body>
+</html>
