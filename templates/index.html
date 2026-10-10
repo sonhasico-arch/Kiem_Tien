@@ -1,207 +1,137 @@
 <!DOCTYPE html>
 <html lang="vi">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Kiếm tiền - KML/KMZ sang DXF</title>
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<link rel="stylesheet" href="https://unpkg.com/leaflet-draw/dist/leaflet.draw.css">
-<style>
-* { box-sizing: border-box; }
-body { margin:0; display:flex; font-family:Arial,sans-serif; }
-#sidebar { width:300px; min-width:300px; background:#111; color:white; padding:20px; overflow:auto; height:100vh; }
-#map { flex:1; height:100vh; }
-button { width:100%; padding:10px; margin-top:10px; background:#007bff; border:0; color:white; cursor:pointer; border-radius:2px; }
-button:disabled { opacity:.6; cursor:wait; }
-#status { margin-top:15px; font-weight:bold; color:#00ff99; overflow-wrap:anywhere; }
-#details { color:#ddd; font-size:13px; line-height:1.5; }
-input[type=file] { width:100%; }
-@media(max-width:700px) {
-  body { display:block; }
-  #sidebar { width:100%; min-width:0; height:auto; }
-  #map { height:65vh; }
-}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KML/KMZ sang DXF - OSM</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, sans-serif; color: #222; }
+    header { padding: 12px 16px; background: #145da0; color: white; }
+    header h2 { margin: 0 0 5px; font-size: 20px; }
+    header p { margin: 0; font-size: 13px; }
+    .toolbar { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px; align-items: center; }
+    button, input[type=file] { padding: 9px; }
+    button { border: 0; border-radius: 4px; background: #145da0; color: white; cursor: pointer; }
+    button:disabled { opacity: .55; cursor: wait; }
+    #map { height: calc(100vh - 155px); min-height: 400px; width: 100%; }
+    #status { padding: 0 12px 10px; font-size: 13px; white-space: pre-wrap; }
+    .hint { color: #555; font-size: 12px; padding: 0 12px 8px; }
+  </style>
 </head>
 <body>
-<div id="sidebar">
-  <h2>KIẾM TIỀN LÀ CHÂN ÁI</h2>
-  <h4>Upload KML / KMZ</h4>
-  <input type="file" id="file" accept=".kml,.kmz">
-  <button id="uploadBtn" onclick="uploadKml()">Upload</button>
-  <button id="exportBtn" onclick="exportDXF()">Export DXF</button>
-  <p id="status">Chọn file KML/KMZ để bắt đầu.</p>
-  <div id="details"></div>
-</div>
-<div id="map"></div>
+  <header>
+    <h2>Chuyển đổi KML/KMZ sang DXF</h2>
+    <p>Chọn khu vực trên bản đồ. DXF dùng hệ tọa độ Web Mercator (EPSG:3857).</p>
+  </header>
+  <div class="toolbar">
+    <input id="fileInput" type="file" accept=".kml,.kmz">
+    <button id="uploadBtn" type="button">Tải KML/KMZ</button>
+    <button id="exportBtn" type="button">Xuất DXF khu vực bản đồ</button>
+    <button id="resetBtn" type="button">Về Việt Nam</button>
+  </div>
+  <div class="hint">
+    Giới hạn OSM: tối đa 5 km² mỗi lần xuất. OSM phụ thuộc dịch vụ Overpass và có thể chậm khi máy chủ quá tải.
+    Đường OSM xuất thành đường tâm để giảm RAM.
+  </div>
+  <div id="status">Đang khởi tạo bản đồ...</div>
+  <div id="map"></div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/leaflet-draw/dist/leaflet.draw.js"></script>
-<script>
-const map = L.map('map').setView([21.03, 105.85], 12);
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const map = L.map('map').setView([21.0285, 105.8542], 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
 
-const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19});
-const googleSat = L.tileLayer('https://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {maxZoom:20, subdomains:['mt0','mt1','mt2','mt3']});
-const googleHybrid = L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {maxZoom:20, subdomains:['mt0','mt1','mt2','mt3']});
-const dark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {maxZoom:19});
-osm.addTo(map);
-L.control.layers({
-  "OSM": osm,
-  "Google Satellite": googleSat,
-  "Google Hybrid": googleHybrid,
-  "Dark Mode": dark
-}).addTo(map);
+    const statusEl = document.getElementById('status');
+    const fileInput = document.getElementById('fileInput');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const exportBtn = document.getElementById('exportBtn');
+    const resetBtn = document.getElementById('resetBtn');
 
-const pointLayer = L.layerGroup().addTo(map);
-const lineLayer = L.layerGroup().addTo(map);
-const drawnItems = new L.FeatureGroup().addTo(map);
-let selectedBBox = null;
+    let uploaded = false;
+    let uploadLayer = L.layerGroup().addTo(map);
 
-const drawControl = new L.Control.Draw({
-  draw: {
-    polygon:false, polyline:true, circle:false, marker:false,
-    circlemarker:false, rectangle:true
-  },
-  edit:{featureGroup:drawnItems}
-});
-map.addControl(drawControl);
+    function setStatus(message) { statusEl.textContent = message; }
 
-map.on(L.Draw.Event.CREATED, function(e) {
-  const layer = e.layer;
-  if (e.layerType === "rectangle") {
-    drawnItems.clearLayers();
-    drawnItems.addLayer(layer);
-    const b = layer.getBounds();
-    selectedBBox = {
-      north:b.getNorth(), south:b.getSouth(),
-      east:b.getEast(), west:b.getWest()
-    };
-    document.getElementById("status").innerText = "Đã chọn vùng export.";
-  } else if (e.layerType === "polyline") {
-    drawnItems.addLayer(layer);
-    let pts = layer.getLatLngs();
-    let distance = 0;
-    for (let i=1; i<pts.length; i++) distance += map.distance(pts[i-1], pts[i]);
-    document.getElementById("status").innerText =
-      "Chiều dài tuyến vẽ: " + distance.toFixed(2) + " m (" +
-      (distance/1000).toFixed(3) + " km).";
-  }
-});
-
-async function uploadKml() {
-  const input = document.getElementById("file");
-  if (!input.files.length) {
-    alert("Bạn chưa chọn file KML/KMZ.");
-    return;
-  }
-
-  const button = document.getElementById("uploadBtn");
-  button.disabled = true;
-  document.getElementById("status").innerText = "Đang đọc KML/KMZ...";
-  document.getElementById("details").innerText = "";
-
-  const form = new FormData();
-  form.append("file", input.files[0]);
-
-  try {
-    const response = await fetch("/upload_kml", {method:"POST", body:form});
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "Không upload được file.");
-
-    pointLayer.clearLayers();
-    lineLayer.clearLayers();
-    const bounds = [];
-
-    (data.points || []).forEach(p => {
-      const ll = [p.lat, p.lon];
-      pointLayer.addLayer(L.circleMarker(ll, {
-        radius:5, color:"red", fillColor:"#ff5555", fillOpacity:.8
-      }).bindPopup(`${escapeHtml(p.name)}<br>${p.lat}, ${p.lon}`));
-      bounds.push(ll);
-    });
-
-    // Vẽ đúng các LineString có trong KML, không tự nối các điểm Point rời rạc.
-    (data.lines || []).forEach(line => {
-      const latlngs = (line.coords || []).map(c => [c[1], c[0]]);
-      if (latlngs.length >= 2) {
-        lineLayer.addLayer(L.polyline(latlngs, {
-          color:"yellow", weight:4, opacity:.95
-        }).bindPopup(escapeHtml(line.name || "KML route")));
-        latlngs.forEach(ll => bounds.push(ll));
+    uploadBtn.addEventListener('click', async () => {
+      const file = fileInput.files[0];
+      if (!file) {
+        setStatus('Vui lòng chọn file .kml hoặc .kmz trước.');
+        return;
+      }
+      const form = new FormData();
+      form.append('file', file);
+      uploadBtn.disabled = true;
+      setStatus('Đang đọc file KML/KMZ...');
+      try {
+        const response = await fetch('/upload_kml', { method: 'POST', body: form });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Upload thất bại.');
+        uploaded = true;
+        setStatus(`Đã tải ${file.name}\nSố điểm: ${data.points}\nSố tuyến: ${data.lines}\nBấm “Xuất DXF khu vực bản đồ” để xuất dữ liệu trong khung bản đồ hiện tại.`);
+      } catch (error) {
+        setStatus('Lỗi upload: ' + error.message);
+      } finally {
+        uploadBtn.disabled = false;
       }
     });
 
-    if (bounds.length) map.fitBounds(bounds, {padding:[20,20], maxZoom:18});
-    document.getElementById("status").innerText = "Đọc KML/KMZ thành công.";
-    document.getElementById("details").innerText =
-      `Điểm: ${data.point_count || 0} | Tuyến LineString: ${data.line_count || 0}`;
-  } catch (err) {
-    document.getElementById("status").innerText = "Lỗi upload: " + err.message;
-  } finally {
-    button.disabled = false;
-  }
-}
+    exportBtn.addEventListener('click', async () => {
+      const b = map.getBounds();
+      const payload = {
+        north: b.getNorth(),
+        south: b.getSouth(),
+        east: b.getEast(),
+        west: b.getWest()
+      };
+      exportBtn.disabled = true;
+      setStatus('Đang xuất DXF. Nếu dịch vụ OSM chậm, vui lòng chờ; không đóng trang.');
+      try {
+        const response = await fetch('/export_dxf', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (!response.ok) {
+          let message = `HTTP ${response.status}`;
+          try {
+            const data = await response.json();
+            if (data.error) message = data.error;
+          } catch (_) {}
+          throw new Error(message);
+        }
 
-async function exportDXF() {
-  if (!selectedBBox) {
-    alert("Hãy dùng công cụ hình chữ nhật trên bản đồ để chọn vùng export.");
-    return;
-  }
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'export_kml_osm.dxf';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
 
-  const button = document.getElementById("exportBtn");
-  button.disabled = true;
-  document.getElementById("status").innerText = "Đang lấy dữ liệu OSM và tạo DXF...";
-
-  try {
-    const response = await fetch("/export_dxf", {
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({bbox:selectedBBox})
+        const warning = response.headers.get('X-OSM-Warning') || '';
+        const osmCount = response.headers.get('X-OSM-Entities') || '0';
+        const kmlLines = response.headers.get('X-KML-Lines') || '0';
+        const kmlPoints = response.headers.get('X-KML-Points') || '0';
+        const area = response.headers.get('X-Selected-Area-Km2') || '?';
+        let msg = `Đã tạo file DXF.\nDiện tích vùng chọn: ${area} km²\nĐường OSM: ${osmCount}\nTuyến KML/KMZ: ${kmlLines}\nĐiểm KML/KMZ: ${kmlPoints}`;
+        if (warning) msg += `\nCảnh báo: ${warning}`;
+        setStatus(msg);
+      } catch (error) {
+        setStatus('Xuất DXF thất bại: ' + error.message + '\nNếu Render log có SIGKILL, hãy giảm vùng chọn và thử lại.');
+      } finally {
+        exportBtn.disabled = false;
+      }
     });
 
-    if (!response.ok) {
-      let message = "Không xuất được DXF.";
-      const contentType = response.headers.get("content-type") || "";
-      if (contentType.includes("application/json")) {
-        const err = await response.json();
-        message = err.error || message;
-      } else {
-        message = await response.text() || message;
-      }
-      throw new Error(message);
-    }
-
-    const blob = await response.blob();
-    if (!blob.size) throw new Error("File DXF nhận về đang rỗng.");
-
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "Conver_DXF.dxf";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-
-    const kmlLines = response.headers.get("X-KML-Lines") || "0";
-    const kmlPoints = response.headers.get("X-KML-Points") || "0";
-    const osmEntities = response.headers.get("X-OSM-Entities") || "0";
-    const warning = response.headers.get("X-OSM-Warning");
-    document.getElementById("status").innerText =
-      `Xuất DXF thành công. Tuyến KML: ${kmlLines}; điểm KML: ${kmlPoints}; đối tượng biên đường OSM: ${osmEntities}` +
-      (warning ? ". Lưu ý: truy vấn OSM lỗi, file chỉ gồm dữ liệu KML." : "");
-  } catch (err) {
-    document.getElementById("status").innerText = "Lỗi export: " + err.message;
-  } finally {
-    button.disabled = false;
-  }
-}
-
-function escapeHtml(value) {
-  return String(value ?? "").replace(/[&<>"']/g, ch => ({
-    "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;"
-  })[ch]);
-}
-</script>
+    resetBtn.addEventListener('click', () => map.setView([21.0285, 105.8542], 13));
+    setStatus('Bản đồ đã sẵn sàng. Chọn file KML/KMZ nếu cần, sau đó chọn vùng và xuất DXF.');
+  </script>
 </body>
 </html>
