@@ -231,10 +231,13 @@ def export_dxf():
     osm_count, osm_warning = 0, ""
 
     if area_km2 > MAX_OSM_AREA_KM2:
-        osm_warning = f"Vùng chọn {area_km2:.2f} km² vượt giới hạn OSM {MAX_OSM_AREA_KM2:.1f} km². DXF vẫn được xuất với KML/KMZ."
-        logger.warning(osm_warning)
-    else:
-        osm_count, osm_warning = add_osm_roads(msp, north, south, east, west)
+        if True:
+    osm_warning = "Tạm tắt truy vấn OSM để kiểm tra chức năng xuất KML/KMZ."
+    logger.warning(osm_warning)
+else:
+    osm_count, osm_warning = add_osm_roads(
+        msp, north, south, east, west
+    )
 
     output = io.BytesIO()
     doc.write(output)
