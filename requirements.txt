@@ -3,3 +3,4 @@ gunicorn
 openpyxl
 ezdxf
 pyproj
+osmnx==1.3.0
